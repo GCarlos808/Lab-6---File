@@ -4,7 +4,9 @@ import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import javax.swing.table.DefaultTableModel;
 import org.apache.poi.xwpf.usermodel.*;
 
 public class GestorTablas {
@@ -181,8 +183,14 @@ public class GestorTablas {
             add(panel);
         }
 
-        public boolean isAceptado()  { return aceptado; }
-        public int getFilas()        { return (int) spinnerFilas.getValue(); }
-        public int getColumnas()     { return (int) spinnerColumnas.getValue(); }
+        public boolean isAceptado(){
+            return aceptado; 
+        }
+        public int getFilas(){ 
+            return (int) spinnerFilas.getValue(); 
+        }
+        public int getColumnas(){
+            return (int) spinnerColumnas.getValue(); 
+        }
     }
 }
