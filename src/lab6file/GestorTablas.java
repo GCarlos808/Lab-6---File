@@ -1,18 +1,24 @@
 package lab6file;
 
 import javax.swing.*;
+import javax.swing.table.*;
 import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.swing.table.DefaultTableModel;
 import org.apache.poi.xwpf.usermodel.*;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTShd;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STShd;
 
 public class GestorTablas {
 
     private JTextPane editorTexto;
     private List<JTable> tablasInsertadas = new ArrayList<>();
+    private List<Map<String, Color>> coloresPorTabla = new ArrayList<>();
 
     public GestorTablas(JTextPane editorTexto) {
         this.editorTexto = editorTexto;
@@ -25,12 +31,26 @@ public class GestorTablas {
         if (dialogo.isAceptado()) {
             int filas    = dialogo.getFilas();
             int columnas = dialogo.getColumnas();
-            crearTablaVisual(filas, columnas, null);
+            crearTablaVisual(filas, columnas, null, null, null);
         }
     }
 
-    private void crearTablaVisual(int filas, int columnas, String[][] datos) {
-        DefaultTableModel modelo = new DefaultTableModel(filas, columnas);
+    private void crearTablaVisual(int filas, int columnas, String[] encabezados, String[][] datos, Map<String, Color> coloresGuardados) {
+        if (encabezados == null) {
+            encabezados = new String[columnas];
+            for (int c = 0; c < columnas; c++) {
+                encabezados[c] = "Columna " + (c + 1);
+            }
+        }
+
+        final String[] encabezadosFinal = encabezados;
+
+        DefaultTableModel modelo = new DefaultTableModel(encabezadosFinal, filas) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return true;
+            }
+        };
 
         if (datos != null) {
             for (int f = 0; f < filas; f++) {
@@ -42,12 +62,63 @@ public class GestorTablas {
             }
         }
 
+        Map<String, Color> coloresCelda = (coloresGuardados != null) ? coloresGuardados : new HashMap<>();
+        coloresPorTabla.add(coloresCelda);
+
         JTable tabla = new JTable(modelo);
         tabla.setGridColor(Color.DARK_GRAY);
         tabla.setRowHeight(28);
         tabla.setFont(new Font("Arial", Font.PLAIN, 13));
         tabla.getTableHeader().setBackground(new Color(220, 220, 220));
         tabla.setFillsViewportHeight(true);
+        tabla.getTableHeader().setReorderingAllowed(false);
+
+        tabla.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int col) {
+                Component c = super.getTableCellRendererComponent(t, value, isSelected, hasFocus, row, col);
+                String key = row + "," + col;
+                if (!isSelected) {
+                    c.setBackground(coloresCelda.getOrDefault(key, Color.WHITE));
+                }
+                return c;
+            }
+        });
+
+        tabla.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    int fila = tabla.rowAtPoint(e.getPoint());
+                    int col  = tabla.columnAtPoint(e.getPoint());
+                    if (fila == -1 || col == -1) return;
+
+                    String key = fila + "," + col;
+                    Color actual = coloresCelda.getOrDefault(key, Color.WHITE);
+                    Color elegido = JColorChooser.showDialog(editorTexto, "Color de celda", actual);
+                    if (elegido != null) {
+                        coloresCelda.put(key, elegido);
+                        tabla.repaint();
+                    }
+                }
+            }
+        });
+
+        tabla.getTableHeader().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int col = tabla.columnAtPoint(e.getPoint());
+                    String nuevoNombre = JOptionPane.showInputDialog("Nombre de columna:",
+                            tabla.getColumnName(col));
+                    if (nuevoNombre != null && !nuevoNombre.trim().isEmpty()) {
+                        tabla.getColumnModel().getColumn(col).setHeaderValue(nuevoNombre);
+                        tabla.getTableHeader().repaint();
+                    }
+                }
+            }
+        });
 
         int anchoTotal = columnas * 100;
         int altoTotal  = (filas + 1) * 30;
@@ -68,14 +139,29 @@ public class GestorTablas {
     }
 
     public void guardarTablas(XWPFDocument documento) {
-        for (JTable tabla : tablasInsertadas) {
+        for (int t = 0; t < tablasInsertadas.size(); t++) {
+            JTable tabla = tablasInsertadas.get(t);
+            Map<String, Color> coloresCelda = coloresPorTabla.get(t);
+
             int filas    = tabla.getRowCount();
             int columnas = tabla.getColumnCount();
 
-            XWPFTable tablaWord = documento.createTable(filas, columnas);
+            XWPFTable tablaWord = documento.createTable(filas + 1, columnas);
+
+            XWPFTableRow filaEncabezado = tablaWord.getRow(0);
+            for (int c = 0; c < columnas; c++) {
+                String encabezado = tabla.getColumnName(c);
+                XWPFTableCell celda;
+                if (c < filaEncabezado.getTableCells().size()) {
+                    celda = filaEncabezado.getCell(c);
+                } else {
+                    celda = filaEncabezado.addNewTableCell();
+                }
+                celda.setText(encabezado);
+            }
 
             for (int f = 0; f < filas; f++) {
-                XWPFTableRow fila = tablaWord.getRow(f);
+                XWPFTableRow fila = tablaWord.getRow(f + 1);
                 for (int c = 0; c < columnas; c++) {
                     Object valor = tabla.getValueAt(f, c);
                     String texto = (valor != null) ? valor.toString() : "";
@@ -86,8 +172,16 @@ public class GestorTablas {
                     } else {
                         celda = fila.addNewTableCell();
                     }
-
                     celda.setText(texto);
+
+                    String key = f + "," + c;
+                    if (coloresCelda.containsKey(key)) {
+                        Color color = coloresCelda.get(key);
+                        String hex = String.format("%02X%02X%02X", color.getRed(), color.getGreen(), color.getBlue());
+                        CTShd shd = celda.getCTTc().addNewTcPr().addNewShd();
+                        shd.setVal(STShd.CLEAR);
+                        shd.setFill(hex);
+                    }
                 }
             }
         }
@@ -97,29 +191,50 @@ public class GestorTablas {
         List<XWPFTable> tablasWord = documento.getTables();
 
         for (XWPFTable tablaWord : tablasWord) {
-            int filas    = tablaWord.getRows().size();
-            int columnas = (filas > 0) ? tablaWord.getRow(0).getTableCells().size() : 0;
+            int totalFilas = tablaWord.getRows().size();
+            int columnas   = (totalFilas > 0) ? tablaWord.getRow(0).getTableCells().size() : 0;
 
-            if (filas == 0 || columnas == 0) continue;
+            if (totalFilas == 0 || columnas == 0) continue;
 
-            String[][] datos = new String[filas][columnas];
-            for (int f = 0; f < filas; f++) {
-                XWPFTableRow fila = tablaWord.getRow(f);
+            String[] encabezados = new String[columnas];
+            XWPFTableRow filaEncabezado = tablaWord.getRow(0);
+            for (int c = 0; c < columnas; c++) {
+                encabezados[c] = filaEncabezado.getCell(c).getText();
+            }
+
+            int filasDatos = totalFilas - 1;
+            String[][] datos = new String[filasDatos][columnas];
+            Map<String, Color> coloresCelda = new HashMap<>();
+
+            for (int f = 0; f < filasDatos; f++) {
+                XWPFTableRow fila = tablaWord.getRow(f + 1);
                 for (int c = 0; c < columnas; c++) {
                     if (c < fila.getTableCells().size()) {
-                        datos[f][c] = fila.getCell(c).getText();
+                        XWPFTableCell celda = fila.getCell(c);
+                        datos[f][c] = celda.getText();
+
+                        if (celda.getCTTc().getTcPr() != null && celda.getCTTc().getTcPr().getShd() != null) {
+                            String fill = celda.getCTTc().getTcPr().getShd().xgetFill().getStringValue();
+                            if (fill != null && !fill.equalsIgnoreCase("auto") && fill.length() == 6) {
+                                try {
+                                    Color color = Color.decode("#" + fill);
+                                    coloresCelda.put(f + "," + c, color);
+                                } catch (Exception ignored) {}
+                            }
+                        }
                     } else {
                         datos[f][c] = "";
                     }
                 }
             }
 
-            crearTablaVisual(filas, columnas, datos);
+            crearTablaVisual(filasDatos, columnas, encabezados, datos, coloresCelda);
         }
     }
 
     public void limpiar() {
         tablasInsertadas.clear();
+        coloresPorTabla.clear();
     }
 
     static class DialogoTabla extends JDialog {
@@ -183,14 +298,8 @@ public class GestorTablas {
             add(panel);
         }
 
-        public boolean isAceptado(){
-            return aceptado; 
-        }
-        public int getFilas(){ 
-            return (int) spinnerFilas.getValue(); 
-        }
-        public int getColumnas(){
-            return (int) spinnerColumnas.getValue(); 
-        }
+        public boolean isAceptado() { return aceptado; }
+        public int getFilas()       { return (int) spinnerFilas.getValue(); }
+        public int getColumnas()    { return (int) spinnerColumnas.getValue(); }
     }
 }
