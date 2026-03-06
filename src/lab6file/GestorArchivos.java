@@ -6,201 +6,152 @@ import javax.swing.text.*;
 import java.awt.Color;
 import java.io.*;
 
-public class GestorArchivos {
+public class GestorArchivos{
 
-    public static void guardar(JTextPane textPane, String ruta) {
-        try {
-            StyledDocument doc = textPane.getStyledDocument();
-            String textoCompleto = textPane.getText();
-            int size = textoCompleto.length();
+    public static void guardar(JTextPane textPane,String ruta){
+        guardar(textPane,ruta,null);
+    }
 
-            XWPFDocument documento = new XWPFDocument();
-            XWPFParagraph parrafo = documento.createParagraph();
+    public static void guardar(JTextPane textPane,String ruta,GestorTablas gestorTablas){
+        try{
+            StyledDocument doc=textPane.getStyledDocument();
+            String textoCompleto=textPane.getText();
+            int size=textoCompleto.length();
 
-            ByteArrayOutputStream arrayBytes = new ByteArrayOutputStream();
-            DataOutputStream data = new DataOutputStream(arrayBytes);
+            XWPFDocument documento=new XWPFDocument();
+            XWPFParagraph parrafo=documento.createParagraph();
 
-            int i = 0;
-            while (i < size) {
-                AttributeSet atributos = doc.getCharacterElement(i).getAttributes();
+            int i=0;
+            while(i<size){
+                AttributeSet atributos=doc.getCharacterElement(i).getAttributes();
 
-                int j = i + 1;
-                while (j < size) {
-                    AttributeSet attrsJ = doc.getCharacterElement(j).getAttributes();
-                    if (!mismoFormato(atributos, attrsJ)) {
-                        break;
-                    }
+                int j=i+1;
+                while(j<size){
+                    AttributeSet attrsJ=doc.getCharacterElement(j).getAttributes();
+                    if(!mismoFormato(atributos,attrsJ))break;
                     j++;
                 }
 
-                String fragmento = textoCompleto.substring(i, j);
+                String fragmento=textoCompleto.substring(i,j);
+                String familia=StyleConstants.getFontFamily(atributos);
+                int tamano=StyleConstants.getFontSize(atributos);
+                boolean negrita=StyleConstants.isBold(atributos);
+                boolean cursiva=StyleConstants.isItalic(atributos);
+                boolean subray=StyleConstants.isUnderline(atributos);
+                Color color=StyleConstants.getForeground(atributos);
 
-                String familia = StyleConstants.getFontFamily(atributos);
-                int tamano = StyleConstants.getFontSize(atributos);
-                boolean negrita = StyleConstants.isBold(atributos);
-                boolean cursiva = StyleConstants.isItalic(atributos);
-                boolean subray = StyleConstants.isUnderline(atributos);
-                Color color = StyleConstants.getForeground(atributos);
-
-                byte[] bytesTexto = fragmento.getBytes("UTF-8");
-                byte[] bytesFont = familia.getBytes("UTF-8");
-
-                data.writeInt(bytesTexto.length);
-                data.write(bytesTexto);
-                data.writeInt(bytesFont.length);
-                data.write(bytesFont);
-                data.writeInt(tamano);
-                data.writeBoolean(negrita);
-                data.writeBoolean(cursiva);
-                data.writeBoolean(subray);
-                data.writeInt(color.getRed());
-                data.writeInt(color.getGreen());
-                data.writeInt(color.getBlue());
-
-                XWPFRun run = parrafo.createRun();
+                XWPFRun run=parrafo.createRun();
                 run.setText(fragmento);
                 run.setFontFamily(familia);
                 run.setFontSize(tamano);
                 run.setBold(negrita);
                 run.setItalic(cursiva);
-                if (subray) {
-                    run.setUnderline(UnderlinePatterns.SINGLE);
-                } else {
-                    run.setUnderline(UnderlinePatterns.NONE);
-                }
+                run.setUnderline(subray?UnderlinePatterns.SINGLE:UnderlinePatterns.NONE);
 
-                String hex = String.format("%02X%02X%02X", color.getRed(), color.getGreen(), color.getBlue());
+                String hex=String.format("%02X%02X%02X",
+                        color.getRed(),color.getGreen(),color.getBlue());
                 run.setColor(hex);
 
-                i = j;
+                i=j;
             }
 
-            data.close();
-            byte[] contenido = arrayBytes.toByteArray();
+            if(gestorTablas!=null){
+                gestorTablas.guardarTablas(documento);
+            }
 
-            RandomAccessFile rarch = new RandomAccessFile(ruta, "rw");
-            rarch.setLength(0);
-            rarch.seek(0);
-            rarch.write(contenido);
-            rarch.close();
+            ByteArrayOutputStream baos=new ByteArrayOutputStream();
+            documento.write(baos);
+            byte[] contenidoPoi=baos.toByteArray();
 
-            ByteArrayOutputStream arrayPoi = new ByteArrayOutputStream();
-            documento.write(arrayPoi);
-            byte[] contenidoPoi= arrayPoi.toByteArray();
-
-            rarch= new RandomAccessFile(ruta, "rw");
+            RandomAccessFile rarch=new RandomAccessFile(ruta,"rw");
             rarch.setLength(0);
             rarch.seek(0);
             rarch.write(contenidoPoi);
             rarch.close();
 
             documento.close();
+            JOptionPane.showMessageDialog(null,"Archivo guardado correctamente.");
 
-            JOptionPane.showMessageDialog(null, "Archivo guardado correctamente.");
-
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(null, "Error al guardar: " + e.getMessage());
+        }catch(Exception e){
+            JOptionPane.showMessageDialog(null,"Error al guardar: "+e.getMessage());
             e.printStackTrace();
         }
     }
 
-    public static void abrir(JTextPane textPane, String ruta) {
-        try {
-            RandomAccessFile rarch= new RandomAccessFile(ruta, "r");
+    public static void abrir(JTextPane textPane,String ruta){
+        abrir(textPane,ruta,null);
+    }
 
-            if (rarch.length()== 0) {
+    public static void abrir(JTextPane textPane,String ruta,GestorTablas gestorTablas){
+        try{
+            RandomAccessFile rarch=new RandomAccessFile(ruta,"r");
+
+            if(rarch.length()==0){
                 rarch.close();
-                JOptionPane.showMessageDialog(null, "El archivo está vacío.");
+                JOptionPane.showMessageDialog(null,"El archivo está vacío.");
                 return;
             }
 
             rarch.seek(0);
-            byte[] contenido= new byte[(int) rarch.length()];
+            byte[] contenido=new byte[(int)rarch.length()];
             rarch.readFully(contenido);
             rarch.close();
 
-            ByteArrayInputStream arrrayBytes= new ByteArrayInputStream(contenido);
-            XWPFDocument documento= new XWPFDocument(arrrayBytes);
+            XWPFDocument documento=new XWPFDocument(new ByteArrayInputStream(contenido));
 
-            StyledDocument doc= textPane.getStyledDocument();
-            doc.remove(0, doc.getLength());
+            StyledDocument doc=textPane.getStyledDocument();
+            doc.remove(0,doc.getLength());
 
-            DataInputStream input= new DataInputStream(new ByteArrayInputStream(contenido));
+            for(XWPFParagraph parrafo:documento.getParagraphs()){
+                for(XWPFRun run:parrafo.getRuns()){
+                    String texto=run.getText(0);
+                    if(texto==null||texto.isEmpty())continue;
 
-            while (input.available() > 0) {
-                int largoTexto= input.readInt();
-                byte[] bytesTexto= new byte[largoTexto];
-                input.readFully(bytesTexto);
-                String texto= new String(bytesTexto, "UTF-8");
+                    String familia=run.getFontFamily()!=null?run.getFontFamily():"Arial";
+                    int tamano=run.getFontSize()>0?run.getFontSize():12;
 
-                int largoFont= input.readInt();
-                byte[] bytesFont= new byte[largoFont];
-                input.readFully(bytesFont);
-                String familia = new String(bytesFont, "UTF-8");
+                    boolean negrita=run.isBold();
+                    boolean cursiva=run.isItalic();
+                    boolean subray=run.getUnderline()!=UnderlinePatterns.NONE;
 
-                int tamanio= input.readInt();
-                boolean negrita= input.readBoolean();
-                boolean cursiva= input.readBoolean();
-                boolean subray= input.readBoolean();
-
-                int red= input.readInt();
-                int green= input.readInt();
-                int blue= input.readInt();
-                Color color= new Color(red, green, blue);
-
-                SimpleAttributeSet atributos= new SimpleAttributeSet();
-                StyleConstants.setFontFamily(atributos, familia);
-                StyleConstants.setFontSize(atributos, tamanio);
-                StyleConstants.setBold(atributos, negrita);
-                StyleConstants.setItalic(atributos, cursiva);
-                StyleConstants.setUnderline(atributos, subray);
-                StyleConstants.setForeground(atributos, color);
-
-                doc.insertString(doc.getLength(), texto, atributos);
-            }
-            input.close();
-
-            for (XWPFParagraph parrafo: documento.getParagraphs()) {
-                for (XWPFRun run: parrafo.getRuns()) {
-                    String texto= run.getText(0);
-                    if (texto== null || texto.isEmpty()) {
-                        continue;
+                    Color color=Color.BLACK;
+                    String colorHex=run.getColor();
+                    if(colorHex!=null&&!colorHex.equalsIgnoreCase("auto")){
+                        color=Color.decode("#"+colorHex);
                     }
-                    String familia= run.getFontFamily() != null ? run.getFontFamily() : "Arial";
-                    int tamanio= run.getFontSize() > 0 ? run.getFontSize() : 12;
 
-                    boolean negrita= run.isBold();
-                    boolean cursiva= run.isItalic();
-                    boolean subray= run.getUnderline()!= UnderlinePatterns.NONE;
+                    SimpleAttributeSet attrs=new SimpleAttributeSet();
+                    StyleConstants.setFontFamily(attrs,familia);
+                    StyleConstants.setFontSize(attrs,tamano);
+                    StyleConstants.setBold(attrs,negrita);
+                    StyleConstants.setItalic(attrs,cursiva);
+                    StyleConstants.setUnderline(attrs,subray);
+                    StyleConstants.setForeground(attrs,color);
 
-                    Color color= Color.BLACK;
-                    String colorHex= run.getColor();
-                    if (colorHex!= null && !colorHex.equalsIgnoreCase("auto")) {
-                        color= Color.decode("#" + colorHex);
-                    }
-                    SimpleAttributeSet attrs= new SimpleAttributeSet();
-                    StyleConstants.setFontFamily(attrs, familia);
-                    StyleConstants.setFontSize(attrs, tamanio);
-                    StyleConstants.setBold(attrs, negrita);
-                    StyleConstants.setItalic(attrs, cursiva);
-                    StyleConstants.setUnderline(attrs, subray);
-                    StyleConstants.setForeground(attrs, color);
-
-                    doc.insertString(doc.getLength(), texto, attrs);
+                    doc.insertString(doc.getLength(),texto,attrs);
                 }
-                doc.insertString(doc.getLength(), "\n", null);
+                doc.insertString(doc.getLength(),"\n",null);
             }
-            documento.close();
-            JOptionPane.showMessageDialog(null, "Archivo abierto correctamente.");
 
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(null, "Error al abrir: "+ e.getMessage());
+            if(gestorTablas!=null){
+                gestorTablas.cargarTablas(documento);
+            }
+
+            documento.close();
+            JOptionPane.showMessageDialog(null,"Archivo abierto correctamente.");
+
+        }catch(Exception e){
+            JOptionPane.showMessageDialog(null,"Error al abrir: "+e.getMessage());
+            e.printStackTrace();
         }
     }
 
-    private static boolean mismoFormato(AttributeSet a, AttributeSet b) {
-        return ((StyleConstants.getFontFamily(a).equals(StyleConstants.getFontFamily(b))) && (StyleConstants.getFontSize(a)==StyleConstants.getFontSize(b))
-                && (StyleConstants.isBold(a)== StyleConstants.isBold(b)) && (StyleConstants.isItalic(a)== StyleConstants.isItalic(b)) 
-                && (StyleConstants.isUnderline(a)== StyleConstants.isUnderline(b)) && (StyleConstants.getForeground(a).equals(StyleConstants.getForeground(b))));
+    private static boolean mismoFormato(AttributeSet a,AttributeSet b){
+        return StyleConstants.getFontFamily(a).equals(StyleConstants.getFontFamily(b))
+            && StyleConstants.getFontSize(a)==StyleConstants.getFontSize(b)
+            && StyleConstants.isBold(a)==StyleConstants.isBold(b)
+            && StyleConstants.isItalic(a)==StyleConstants.isItalic(b)
+            && StyleConstants.isUnderline(a)==StyleConstants.isUnderline(b)
+            && StyleConstants.getForeground(a).equals(StyleConstants.getForeground(b));
     }
 }
