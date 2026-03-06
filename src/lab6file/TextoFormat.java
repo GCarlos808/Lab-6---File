@@ -56,6 +56,44 @@ documento.setCharacterAttributes(inicio, fin - inicio, atributo, false);
 areaTexto.requestFocus();
 }
 
+public void tachado() {
+int inicio = areaTexto.getSelectionStart();
+int fin = areaTexto.getSelectionEnd();
+if (inicio == fin) return;
+
+boolean tieneTachado = verificarAtributo(inicio, fin, StyleConstants.StrikeThrough);
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+StyleConstants.setStrikeThrough(atributo, !tieneTachado);
+documento.setCharacterAttributes(inicio, fin - inicio, atributo, false);
+areaTexto.requestFocus();
+}
+
+public void superindice() {
+int inicio = areaTexto.getSelectionStart();
+int fin = areaTexto.getSelectionEnd();
+if (inicio == fin) return;
+
+boolean tieneSuperindice = verificarAtributo(inicio, fin, StyleConstants.Superscript);
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+StyleConstants.setSuperscript(atributo, !tieneSuperindice);
+if (!tieneSuperindice) StyleConstants.setSubscript(atributo, false);
+documento.setCharacterAttributes(inicio, fin - inicio, atributo, false);
+areaTexto.requestFocus();
+}
+
+public void subindice() {
+int inicio = areaTexto.getSelectionStart();
+int fin = areaTexto.getSelectionEnd();
+if (inicio == fin) return;
+
+boolean tieneSubindice = verificarAtributo(inicio, fin, StyleConstants.Subscript);
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+StyleConstants.setSubscript(atributo, !tieneSubindice);
+if (!tieneSubindice) StyleConstants.setSuperscript(atributo, false);
+documento.setCharacterAttributes(inicio, fin - inicio, atributo, false);
+areaTexto.requestFocus();
+}
+
 public void color(Component ventana) {
 int inicio = areaTexto.getSelectionStart();
 int fin = areaTexto.getSelectionEnd();
@@ -71,6 +109,25 @@ Color colorElegido = JColorChooser.showDialog(ventana, "Elige un color", colorAc
 if (colorElegido != null) {
 SimpleAttributeSet atributo = new SimpleAttributeSet();
 StyleConstants.setForeground(atributo, colorElegido);
+documento.setCharacterAttributes(inicio, fin - inicio, atributo, false);
+}
+areaTexto.requestFocus();
+}
+
+public void colorFondo(Component ventana) {
+int inicio = areaTexto.getSelectionStart();
+int fin = areaTexto.getSelectionEnd();
+
+if (inicio == fin) {
+JOptionPane.showMessageDialog(ventana, "Selecciona texto primero");
+return;
+}
+
+Color colorElegido = JColorChooser.showDialog(ventana, "Elige color de resaltado", Color.YELLOW);
+
+if (colorElegido != null) {
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+StyleConstants.setBackground(atributo, colorElegido);
 documento.setCharacterAttributes(inicio, fin - inicio, atributo, false);
 }
 areaTexto.requestFocus();
@@ -106,6 +163,62 @@ System.out.println("tamaño invalido");
 }
 }
 
+public void alinearIzquierda() {
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+StyleConstants.setAlignment(atributo, StyleConstants.ALIGN_LEFT);
+aplicarParrafo(atributo);
+}
+
+public void alinearCentro() {
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+StyleConstants.setAlignment(atributo, StyleConstants.ALIGN_CENTER);
+aplicarParrafo(atributo);
+}
+
+public void alinearDerecha() {
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+StyleConstants.setAlignment(atributo, StyleConstants.ALIGN_RIGHT);
+aplicarParrafo(atributo);
+}
+
+public void justificado() {
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+StyleConstants.setAlignment(atributo, StyleConstants.ALIGN_JUSTIFIED);
+aplicarParrafo(atributo);
+}
+
+public void aumentarSangria() {
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+int inicio = areaTexto.getSelectionStart();
+Element parrafo = documento.getParagraphElement(inicio);
+float sangriaActual = StyleConstants.getLeftIndent(parrafo.getAttributes());
+StyleConstants.setLeftIndent(atributo, sangriaActual + 20);
+aplicarParrafo(atributo);
+}
+
+public void reducirSangria() {
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+int inicio = areaTexto.getSelectionStart();
+Element parrafo = documento.getParagraphElement(inicio);
+float sangriaActual = StyleConstants.getLeftIndent(parrafo.getAttributes());
+float nuevaSangria = Math.max(0, sangriaActual - 20);
+StyleConstants.setLeftIndent(atributo, nuevaSangria);
+aplicarParrafo(atributo);
+}
+
+public void interlineado(float espacio) {
+SimpleAttributeSet atributo = new SimpleAttributeSet();
+StyleConstants.setLineSpacing(atributo, espacio);
+aplicarParrafo(atributo);
+}
+
+private void aplicarParrafo(SimpleAttributeSet atributo) {
+int inicio = areaTexto.getSelectionStart();
+int fin = areaTexto.getSelectionEnd();
+documento.setParagraphAttributes(inicio, fin - inicio, atributo, false);
+areaTexto.requestFocus();
+}
+
 private boolean verificarAtributo(int inicio, int fin, Object key) {
 for (int pos = inicio; pos < fin; pos++) {
 Element elemento = documento.getCharacterElement(pos);
@@ -115,6 +228,9 @@ boolean valor = false;
 if (key == StyleConstants.Bold) valor = StyleConstants.isBold(atributos);
 else if (key == StyleConstants.Italic) valor = StyleConstants.isItalic(atributos);
 else if (key == StyleConstants.Underline) valor = StyleConstants.isUnderline(atributos);
+else if (key == StyleConstants.StrikeThrough) valor = StyleConstants.isStrikeThrough(atributos);
+else if (key == StyleConstants.Superscript) valor = StyleConstants.isSuperscript(atributos);
+else if (key == StyleConstants.Subscript) valor = StyleConstants.isSubscript(atributos);
 
 if (!valor) return false;
 }
@@ -151,4 +267,10 @@ public boolean isSubrayado() {
 int posicion = areaTexto.getCaretPosition();
 return StyleConstants.isUnderline(documento.getCharacterElement(posicion).getAttributes());
 }
+
+public boolean isTachado() {
+int posicion = areaTexto.getCaretPosition();
+return StyleConstants.isStrikeThrough(documento.getCharacterElement(posicion).getAttributes());
 }
+}
+
