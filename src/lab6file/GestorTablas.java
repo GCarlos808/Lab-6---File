@@ -21,7 +21,7 @@ public class GestorTablas {
         dialogo.setVisible(true);
 
         if (dialogo.isAceptado()) {
-            int filas = dialogo.getFilas();
+            int filas    = dialogo.getFilas();
             int columnas = dialogo.getColumnas();
             crearTablaVisual(filas, columnas, null);
         }
@@ -181,14 +181,8 @@ public class GestorTablas {
             add(panel);
         }
 
-        public boolean isAceptado(){
-            return aceptado; 
-        }
-        public int getFilas(){ 
-            return (int) spinnerFilas.getValue(); 
-        }
-        public int getColumnas(){ 
-            return (int) spinnerColumnas.getValue(); 
-        }
+        public boolean isAceptado()  { return aceptado; }
+        public int getFilas()        { return (int) spinnerFilas.getValue(); }
+        public int getColumnas()     { return (int) spinnerColumnas.getValue(); }
     }
 }
