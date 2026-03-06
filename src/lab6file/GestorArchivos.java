@@ -106,82 +106,79 @@ public class GestorArchivos {
 
     public static void abrir(JTextPane textPane, String ruta) {
         try {
-            RandomAccessFile raf= new RandomAccessFile(ruta, "r");
+            RandomAccessFile rarch= new RandomAccessFile(ruta, "r");
 
-            if (raf.length()== 0) {
-                raf.close();
+            if (rarch.length()== 0) {
+                rarch.close();
                 JOptionPane.showMessageDialog(null, "El archivo está vacío.");
                 return;
             }
 
-            raf.seek(0);
-            byte[] contenido = new byte[(int) raf.length()];
-            raf.readFully(contenido);
-            raf.close();
+            rarch.seek(0);
+            byte[] contenido= new byte[(int) rarch.length()];
+            rarch.readFully(contenido);
+            rarch.close();
 
-            ByteArrayInputStream bais = new ByteArrayInputStream(contenido);
-            XWPFDocument documento = new XWPFDocument(bais);
+            ByteArrayInputStream arrrayBytes= new ByteArrayInputStream(contenido);
+            XWPFDocument documento= new XWPFDocument(arrrayBytes);
 
-            StyledDocument doc = textPane.getStyledDocument();
+            StyledDocument doc= textPane.getStyledDocument();
             doc.remove(0, doc.getLength());
 
-            DataInputStream dis = new DataInputStream(new ByteArrayInputStream(contenido));
+            DataInputStream input= new DataInputStream(new ByteArrayInputStream(contenido));
 
-            while (dis.available() > 0) {
-                int largoTexto = dis.readInt();
-                byte[] bytesTexto = new byte[largoTexto];
-                dis.readFully(bytesTexto);
-                String texto = new String(bytesTexto, "UTF-8");
+            while (input.available() > 0) {
+                int largoTexto= input.readInt();
+                byte[] bytesTexto= new byte[largoTexto];
+                input.readFully(bytesTexto);
+                String texto= new String(bytesTexto, "UTF-8");
 
-                int largoFont = dis.readInt();
-                byte[] bytesFont = new byte[largoFont];
-                dis.readFully(bytesFont);
+                int largoFont= input.readInt();
+                byte[] bytesFont= new byte[largoFont];
+                input.readFully(bytesFont);
                 String familia = new String(bytesFont, "UTF-8");
 
-                int tamanio = dis.readInt();
-                boolean negrita = dis.readBoolean();
-                boolean cursiva = dis.readBoolean();
-                boolean subray = dis.readBoolean();
+                int tamanio= input.readInt();
+                boolean negrita= input.readBoolean();
+                boolean cursiva= input.readBoolean();
+                boolean subray= input.readBoolean();
 
-                int r = dis.readInt();
-                int g = dis.readInt();
-                int b = dis.readInt();
-                Color color = new Color(r, g, b);
+                int red= input.readInt();
+                int green= input.readInt();
+                int blue= input.readInt();
+                Color color= new Color(red, green, blue);
 
-                SimpleAttributeSet attrs = new SimpleAttributeSet();
-                StyleConstants.setFontFamily(attrs, familia);
-                StyleConstants.setFontSize(attrs, tamanio);
-                StyleConstants.setBold(attrs, negrita);
-                StyleConstants.setItalic(attrs, cursiva);
-                StyleConstants.setUnderline(attrs, subray);
-                StyleConstants.setForeground(attrs, color);
+                SimpleAttributeSet atributos= new SimpleAttributeSet();
+                StyleConstants.setFontFamily(atributos, familia);
+                StyleConstants.setFontSize(atributos, tamanio);
+                StyleConstants.setBold(atributos, negrita);
+                StyleConstants.setItalic(atributos, cursiva);
+                StyleConstants.setUnderline(atributos, subray);
+                StyleConstants.setForeground(atributos, color);
 
-                doc.insertString(doc.getLength(), texto, attrs);
+                doc.insertString(doc.getLength(), texto, atributos);
             }
+            input.close();
 
-            dis.close();
-
-            for (XWPFParagraph parrafo : documento.getParagraphs()) {
-                for (XWPFRun run : parrafo.getRuns()) {
-                    String texto = run.getText(0);
-                    if (texto == null || texto.isEmpty()) {
+            for (XWPFParagraph parrafo: documento.getParagraphs()) {
+                for (XWPFRun run: parrafo.getRuns()) {
+                    String texto= run.getText(0);
+                    if (texto== null || texto.isEmpty()) {
                         continue;
                     }
+                    String familia= run.getFontFamily() != null ? run.getFontFamily() : "Arial";
+                    int tamanio= run.getFontSize() > 0 ? run.getFontSize() : 12;
 
-                    String familia = run.getFontFamily() != null ? run.getFontFamily() : "Arial";
-                    int tamanio = run.getFontSize() > 0 ? run.getFontSize() : 12;
+                    boolean negrita= run.isBold();
+                    boolean cursiva= run.isItalic();
+                    boolean subray= run.getUnderline()!= UnderlinePatterns.NONE;
 
-                    boolean negrita = run.isBold();
-                    boolean cursiva = run.isItalic();
-                    boolean subray = run.getUnderline() != UnderlinePatterns.NONE;
-
-                    Color color = Color.BLACK;
-                    String colorHex = run.getColor();
-                    if (colorHex != null && !colorHex.equalsIgnoreCase("auto")) {
-                        color = Color.decode("#" + colorHex);
+                    Color color= Color.BLACK;
+                    String colorHex= run.getColor();
+                    if (colorHex!= null && !colorHex.equalsIgnoreCase("auto")) {
+                        color= Color.decode("#" + colorHex);
                     }
-
-                    SimpleAttributeSet attrs = new SimpleAttributeSet();
+                    SimpleAttributeSet attrs= new SimpleAttributeSet();
                     StyleConstants.setFontFamily(attrs, familia);
                     StyleConstants.setFontSize(attrs, tamanio);
                     StyleConstants.setBold(attrs, negrita);
@@ -193,23 +190,17 @@ public class GestorArchivos {
                 }
                 doc.insertString(doc.getLength(), "\n", null);
             }
-
             documento.close();
-
             JOptionPane.showMessageDialog(null, "Archivo abierto correctamente.");
 
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(null, "Error al abrir: " + e.getMessage());
-            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error al abrir: "+ e.getMessage());
         }
     }
 
     private static boolean mismoFormato(AttributeSet a, AttributeSet b) {
-        return StyleConstants.getFontFamily(a).equals(StyleConstants.getFontFamily(b))
-                && StyleConstants.getFontSize(a) == StyleConstants.getFontSize(b)
-                && StyleConstants.isBold(a) == StyleConstants.isBold(b)
-                && StyleConstants.isItalic(a) == StyleConstants.isItalic(b)
-                && StyleConstants.isUnderline(a) == StyleConstants.isUnderline(b)
-                && StyleConstants.getForeground(a).equals(StyleConstants.getForeground(b));
+        return ((StyleConstants.getFontFamily(a).equals(StyleConstants.getFontFamily(b))) && (StyleConstants.getFontSize(a)==StyleConstants.getFontSize(b))
+                && (StyleConstants.isBold(a)== StyleConstants.isBold(b)) && (StyleConstants.isItalic(a)== StyleConstants.isItalic(b)) 
+                && (StyleConstants.isUnderline(a)== StyleConstants.isUnderline(b)) && (StyleConstants.getForeground(a).equals(StyleConstants.getForeground(b))));
     }
 }
