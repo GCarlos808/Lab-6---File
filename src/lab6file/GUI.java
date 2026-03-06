@@ -6,6 +6,9 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import javax.swing.undo.UndoManager;
+
+
 
 public class GUI extends JFrame {
     
@@ -19,18 +22,21 @@ public class GUI extends JFrame {
     private JButton btnBold, btnItalic, btnUnderline;
     private JButton btnAlignLeft, btnAlignCenter, btnAlignRight;
     private JButton btnColor;
+    private JButton btnBgColor;
     
     private Color currentFontColor = Color.BLACK;
+    private Color currentBgColor   = Color.YELLOW;
+    private final UndoManager undoManager = new UndoManager();
     
     private TextoFormat textoFormat;
     private GestorTablas gestorTablas;
     
-    private static final String[] FONTS =
-            GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
-    private static final Integer[] SIZES =
-            {8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 48, 56, 64, 72, 96, 144, 190, 240, 300};
+    private static final String[] FONTS = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
+    
+    private static final Integer[] SIZES = {8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 48, 56, 64, 72, 96, 144, 190, 240, 300};
     
     public GUI() {
+        
         super("Editor de Texto DOCX");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(1100, 750);
@@ -42,6 +48,7 @@ public class GUI extends JFrame {
         
         textoFormat  = new TextoFormat(textPane);
         gestorTablas = new GestorTablas(textPane);
+        doc.addUndoableEditListener(e -> undoManager.addEdit(e.getEdit()));
         
         statusBar = new JLabel("  Listo");
         statusBar.setBorder(BorderFactory.createEtchedBorder());
@@ -56,7 +63,9 @@ public class GUI extends JFrame {
         setVisible(true);
     }
     
+    
     private JMenuBar buildMenuBar() {
+        
         JMenuBar mb = new JMenuBar();
         
         JMenu mFile = new JMenu("Archivo");
@@ -73,7 +82,8 @@ public class GUI extends JFrame {
         addItem(mFormat, "Negrita",           0, e -> textoFormat.negrita());
         addItem(mFormat, "Cursiva",           0, e -> textoFormat.cursiva());
         addItem(mFormat, "Subrayado",         0, e -> textoFormat.subrayado());
-        addItem(mFormat, "Color de texto...", 0, e -> textoFormat.color(this));
+        addItem(mFormat, "Color de texto...", 0, e -> pickFontColor());
+        addItem(mFormat, "Color de fondo...", 0, e -> pickBgColor());
         mb.add(mFormat);
         
         JMenu mTable = new JMenu("Tabla");
@@ -83,10 +93,10 @@ public class GUI extends JFrame {
         JMenu mHelp = new JMenu("Ayuda");
         addItem(mHelp, "Acerca de...", 0, e ->
                 JOptionPane.showMessageDialog(this,
-                        "Editor de Texto con soporte a archivos DOCX\nSoporta: fuentes, colores, tamaños, tablas\nFormato .docx con Apache POI", "Acerca de", JOptionPane.INFORMATION_MESSAGE));
-        
+                        "Editor de Texto DOCX\nSoporta: fuentes, colores, tamaños, tablas\nFormato .docx con Apache POI",
+                        "Acerca de", JOptionPane.INFORMATION_MESSAGE));
         mb.add(mHelp);
-        
+
         return mb;
     }
     
@@ -149,8 +159,10 @@ public class GUI extends JFrame {
         
         tb.addSeparator();
         
-        btnColor = makeIconButton("A", "Color de texto", e -> textoFormat.color(this));
+        btnColor   = makeColorSwatchButton("A",  "Color de texto",   currentFontColor, e -> pickFontColor());
+        btnBgColor = makeColorSwatchButton("AB", "Color de fondo",   currentBgColor,   e -> pickBgColor());
         tb.add(btnColor);
+        tb.add(btnBgColor);
         
         tb.addSeparator();
         
@@ -163,8 +175,29 @@ public class GUI extends JFrame {
         JButton btnSave = makeIconButton("S", "Guardar DOCX", e -> actionSave());
         tb.add(btnOpen);
         tb.add(btnSave);
+
+        tb.addSeparator();
         
+        tb.addSeparator();
+        
+        JButton btnCut   = makeIconButton("X", "Cortar (Ctrl+X)",   e -> textPane.cut());
+        JButton btnCopy  = makeIconButton("C", "Copiar (Ctrl+C)",   e -> textPane.copy());
+        JButton btnPaste = makeIconButton("V", "Pegar (Ctrl+V)",   e -> textPane.paste());
+        tb.add(btnCut);
+        tb.add(btnCopy);
+        tb.add(btnPaste);
+        
+        tb.addSeparator();
+        
+        JButton btnUndo = makeIconButton("↩", "Deshacer (Ctrl+Z)", e -> { if (undoManager.canUndo()) undoManager.undo(); });
+        JButton btnRedo = makeIconButton("↪", "Rehacer (Ctrl+Y)", e -> { if (undoManager.canRedo()) undoManager.redo(); });
+        tb.add(btnUndo);
+        tb.add(btnRedo);
+        
+        bindKey("control Z", "Deshacer", e -> { if (undoManager.canUndo()) undoManager.undo(); });
+        bindKey("control Y", "Rehacer", e -> { if (undoManager.canRedo()) undoManager.redo(); });
         return tb;
+        
     }
     
     private void bindKey(String keyStroke, String actionName, ActionListener al) {
@@ -192,21 +225,43 @@ public class GUI extends JFrame {
         return b;
     }
     
+    private JButton makeColorSwatchButton(String label, String tip, Color initialColor, ActionListener al) {
+        JButton b = new JButton(label) {
+            
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Color c = (Color) getClientProperty("swatchColor");
+                if (c == null) c = Color.BLACK;
+                g.setColor(c);
+                g.fillRect(3, getHeight() - 5, getWidth() - 6, 4);
+            }
+        };
+        
+        b.putClientProperty("swatchColor", initialColor);
+        b.setToolTipText(tip);
+        b.setFocusable(false);
+        b.setPreferredSize(new Dimension(40, 28));
+        b.addActionListener(al);
+        return b;
+        
+    }
+    
     private void stylizeButton(JButton b, Font f) {
         b.setFont(f);
+        
     }
     
     private void syncToolbarToSelection() {
         int pos = textPane.getCaretPosition();
         if (pos > 0) pos--;
         AttributeSet as = doc.getCharacterElement(pos).getAttributes();
-
+        
         String fname = StyleConstants.getFontFamily(as);
         int    fsize = StyleConstants.getFontSize(as);
         boolean bold   = StyleConstants.isBold(as);
         boolean italic = StyleConstants.isItalic(as);
         boolean under  = StyleConstants.isUnderline(as);
-        
         
         fontNameBox.setSelectedItem(fname);
         fontSizeBox.setSelectedItem(fsize);
@@ -225,6 +280,25 @@ public class GUI extends JFrame {
         if (sel != null) textoFormat.tamano(sel.toString());
     }
     
+    private void pickFontColor() {
+        Color c = JColorChooser.showDialog(this, "Color de texto", currentFontColor);
+        if (c != null) {
+            currentFontColor = c;
+            btnColor.putClientProperty("swatchColor", c);
+            btnColor.repaint();
+            applyStyle(StyleConstants.Foreground, c);
+        }
+    }
+    
+    private void pickBgColor() {
+        Color c = JColorChooser.showDialog(this, "Color de resaltado", currentBgColor);
+        if (c != null) {
+            currentBgColor = c;
+            btnBgColor.putClientProperty("swatchColor", c);
+            btnBgColor.repaint();
+            applyStyle(StyleConstants.Background, c);
+        }
+    }
     
     private void applyAlignment(int align) {
         MutableAttributeSet as = new SimpleAttributeSet();
@@ -234,6 +308,21 @@ public class GUI extends JFrame {
         doc.setParagraphAttributes(start, end - start, as, false);
     }
     
+    @SuppressWarnings("unchecked")
+    private <T> void applyStyle(Object key, T value) {
+        int start = textPane.getSelectionStart();
+        int end   = textPane.getSelectionEnd();
+        MutableAttributeSet as = new SimpleAttributeSet();
+        if      (key == StyleConstants.Foreground) StyleConstants.setForeground(as, (Color) value);
+        else if (key == StyleConstants.Background) StyleConstants.setBackground(as, (Color) value);
+
+        if (start == end) {
+            textPane.setCharacterAttributes(as, false);
+        } else {
+            doc.setCharacterAttributes(start, end - start, as, false);
+        }
+        textPane.requestFocus();
+    }
     
     private void actionNew() {
         if (confirmDiscard()) {
@@ -250,8 +339,8 @@ public class GUI extends JFrame {
     private void actionOpen() {
         JFileChooser fc = new JFileChooser();
         fc.setFileFilter(new FileNameExtensionFilter("Documentos Word (*.docx)", "docx"));
-        if (fc.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
-        
+        if (fc.showOpenDialog(this) != JFileChooser.APPROVE_OPTION)
+            return;
         
         File f = fc.getSelectedFile();
         gestorTablas.limpiar();
@@ -262,19 +351,18 @@ public class GUI extends JFrame {
     }
     
     private void actionSave() {
-        
         if (currentFile == null) {
             actionSaveAs();
             return;
         }
         saveToFile(currentFile);
-        
     }
     
     private void actionSaveAs() {
         JFileChooser fc = new JFileChooser();
         fc.setFileFilter(new FileNameExtensionFilter("Documentos Word (*.docx)", "docx"));
-        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION)
+            return;
         
         File f = fc.getSelectedFile();
         if (!f.getName().toLowerCase().endsWith(".docx"))
@@ -293,14 +381,13 @@ public class GUI extends JFrame {
     private boolean confirmDiscard() {
         if (doc.getLength() == 0) return true;
         return JOptionPane.showConfirmDialog(this,
-                "¿Descartar cambios actuales?", "Confirmación",
-                JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+                "¿Descartar cambios actuales?", "Confirmación",JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
     }
     
     static class FontComboRenderer extends DefaultListCellRenderer {
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value,
-                int index, boolean isSelected, boolean cellHasFocus) {
+            int index, boolean isSelected, boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             if (value != null) {
                 String name = value.toString();
